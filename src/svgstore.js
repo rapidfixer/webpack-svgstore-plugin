@@ -43,6 +43,7 @@ class WebpackSvgStore {
 
   createTaskContext(expr, parser) {
     const data = {
+      paths: ['/**/*.svg'],
       path: '/**/*.svg',
       fileName: '[hash].sprite.svg',
       context: parser.state.current.context
@@ -56,13 +57,18 @@ class WebpackSvgStore {
         case 'path':
           data.path = prop.value.value;
           break;
+        case 'paths':
+          data.paths = prop.value.elements.map(el => el.value);
+          break;
         default:
           break;
       }
     });
 
-    const files = utils.filesMapSync(path.join(data.context, data.path || ''));
-    
+    const files = (data.paths || [data.path]).reduce((acc, currentPath) => {
+      return [...acc, ...utils.filesMapSync(path.join(data.context, currentPath || ''))]
+    }, []);
+
     data.fileContent = utils.createSprite(utils.parseFiles(files, this.options), this.options.template);
     data.fileName = utils.hash(data.fileName, utils.hashByString(data.fileContent));
 
@@ -77,10 +83,10 @@ class WebpackSvgStore {
   apply(compiler) {
     // AST parser
     compiler.plugin('compilation', (compilation, data) => {
-      
+
       compilation.dependencyFactories.set(ConstDependency, new NullFactory());
       compilation.dependencyTemplates.set(ConstDependency, new ConstDependency.Template());
-      
+
       data.normalModuleFactory.plugin('parser', (parser, options) => {
         parser.plugin('statement', (expr) => {
           if (!expr.declarations || !expr.declarations.length) return;
